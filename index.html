@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Калькулятор стоимости шага цены (MOEX API)</title>
+  <style>
+    :root {
+      --primary-color: #4285f4;
+      --secondary-color: #34a853;
+      --error-color: #ea4335;
+      --text-color: #333;
+      --light-gray: #f5f5f5;
+      --border-color: #ddd;
+      --shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: 'Roboto', Arial, sans-serif;
+      line-height: 1.6;
+      color: var(--text-color);
+      background-color: #f9f9f9;
+      padding: 20px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    
+    #app {
+      background: white;
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      padding: 25px;
+      margin-bottom: 30px;
+    }
+    
+    h1 {
+      color: var(--primary-color);
+      text-align: center;
+      margin-bottom: 25px;
+      font-size: 1.8rem;
+    }
+    
+    .input-group {
+      margin-bottom: 20px;
+      position: relative;
+    }
+    
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+    }
+    
+    input {
+      width: 100%;
+      padding: 12px 15px;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      font-size: 16px;
+      transition: border 0.3s;
+    }
+    
+    input:focus {
+      outline: none;
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.2);
+    }
+    
+    #dropdown {
+      position: absolute;
+      width: 100%;
+      max-height: 250px;
+      overflow-y: auto;
+      background: white;
+      border: 1px solid var(--border-color);
+      border-top: none;
+      border-radius: 0 0 4px 4px;
+      box-shadow: var(--shadow);
+      z-index: 100;
+      display: none;
+    }
+    
+    #dropdown div {
+      padding: 12px 15px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    
+    #dropdown div:hover {
+      background-color: var(--light-gray);
+    }
+    
+    button {
+      width: 100%;
+      padding: 14px;
+      background-color: var(--primary-color);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.3s, transform 0.1s;
+      margin-top: 10px;
+    }
+    
+    button:hover {
+      background-color: #3367d6;
+    }
+    
+    button:active {
+      transform: scale(0.98);
+    }
+    
+    button:disabled {
+      background-color: #cccccc;
+      cursor: not-allowed;
+    }
+    
+    #results {
+      margin-top: 30px;
+      border-top: 1px solid var(--border-color);
+      padding-top: 20px;
+    }
+    
+    .result-item {
+      background: var(--light-gray);
+      border-radius: 6px;
+      padding: 18px;
+      margin-bottom: 15px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+    
+    .result-item h3 {
+      color: var(--primary-color);
+      margin-bottom: 10px;
+    }
+    
+    .result-item p {
+      margin-bottom: 8px;
+    }
+    
+    .result-item strong {
+      color: var(--secondary-color);
+      font-size: 1.1em;
+    }
+    
+    .no-results {
+      text-align: center;
+      color: #666;
+      padding: 20px;
+    }
+    
+    .error-message {
+      color: var(--error-color);
+      margin-top: 5px;
+      font-size: 0.9em;
+    }
+    
+    #loading {
+      text-align: center;
+      padding: 10px;
+      display: none;
+    }
+    
+    #status {
+      text-align: center;
+      font-size: 0.9em;
+      color: #666;
+      margin-top: 10px;
+    }
+    
+    @media (max-width: 600px) {
+      body {
+        padding: 10px;
+      }
+      
+      #app {
+        padding: 15px;
+      }
+      
+      h1 {
+        font-size: 1.5rem;
+        margin-bottom: 20px;
+      }
+      
+      input, button {
+        padding: 10px 12px;
+      }
+    }
+  </style>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div id="app">
+    <h1>Калькулятор стоимости шага цены</h1>
+
+    <div class="input-group">
+      <label for="companySearch">Компания:</label>
+      <input type="text" id="companySearch" placeholder="Начните вводить название или тикер" autocomplete="off">
+      <div id="dropdown"></div>
+    </div>
+    
+    <div class="input-group">
+      <label for="lotsInput">Количество лотов:</label>
+      <input type="number" id="lotsInput" placeholder="Введите количество лотов" min="1">
+    </div>
+    
+    <button id="calculateBtn">Рассчитать</button>
+    <button id="refreshBtn" style="margin-top: 10px;">Обновить данные</button>
+    
+    <div id="loading">Загрузка данных с MOEX...</div>
+    <div id="status">Данные загружены: только что</div>
+    
+    <div id="results">
+      <div class="no-results">Здесь будут результаты расчетов</div>
+    </div>
+  </div>
+
+  <script src="moex-api.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const companySearch = document.getElementById('companySearch');
+      const dropdown = document.getElementById('dropdown');
+      const calculateBtn = document.getElementById('calculateBtn');
+      const refreshBtn = document.getElementById('refreshBtn');
+      const results = document.getElementById('results');
+      const loading = document.getElementById('loading');
+      const status = document.getElementById('status');
+      
+      let lastSearchTime = 0;
+      const searchDebounceTime = 300; // 300ms задержка между запросами при вводе
+      
+      // Обработчик ввода с debounce
+      companySearch.addEventListener('input', debounce(function(e) {
+        const query = e.target.value.toLowerCase().trim();
+        dropdown.innerHTML = '';
+        
+        if (!query) {
+          dropdown.style.display = 'none';
+          return;
+        }
+        
+        const matches = getStockData().filter(item => 
+          item.name.toLowerCase().includes(query) || 
+          item.ticker.toLowerCase().includes(query)
+        );
+        
+        if (matches.length === 0) {
+          const div = document.createElement('div');
+          div.textContent = 'Ничего не найдено';
+          div.style.padding = '12px 15px';
+          div.style.color = '#666';
+          dropdown.appendChild(div);
+        } else {
+          matches.slice(0, 20).forEach(item => { // Ограничиваем 20 результатами
+            const div = document.createElement('div');
+            div.textContent = `${item.name} (${item.ticker})`;
+            div.style.padding = '12px 15px';
+            div.style.cursor = 'pointer';
+            div.onclick = () => {
+              companySearch.value = `${item.name} (${item.ticker})`;
+              dropdown.style.display = 'none';
+              companySearch.focus();
+            };
+            dropdown.appendChild(div);
+          });
+        }
+        
+        dropdown.style.display = 'block';
+      }, searchDebounceTime));
+      
+      // Закрытие dropdown при клике вне его
+      document.addEventListener('click', function(e) {
+        if (e.target !== companySearch) {
+          dropdown.style.display = 'none';
+        }
+      });
+      
+      // Расчет стоимости шага
+      calculateBtn.onclick = function() {
+        const selectedText = companySearch.value.trim();
+        const lots = parseInt(document.getElementById('lotsInput').value) || 0;
+        
+        if (!selectedText) {
+          showError('Выберите компанию из списка!');
+          return;
+        }
+        
+        if (lots <= 0) {
+          showError('Введите корректное количество лотов (больше 0)!');
+          return;
+        }
+        
+        const match = selectedText.match(/\((.*?)\)/);
+        if (!match) {
+          showError('Неверный формат выбранной компании');
+          return;
+        }
+        
+        const ticker = match[1];
+        const company = getStockData().find(item => item.ticker === ticker);
+        
+        if (!company) {
+          showError('Данные по компании не найдены. Попробуйте обновить.');
+          return;
+        }
+        
+        const cost = company.step * lots * company.shares_per_lot;
+        
+        const noResults = document.querySelector('.no-results');
+        if (noResults) noResults.remove();
+        
+        const resultDiv = document.createElement('div');
+        resultDiv.className = 'result-item';
+        resultDiv.innerHTML = `
+          <h3>${company.name} (${company.ticker})</h3>
+          <p>Акций в лоте: ${company.shares_per_lot}</p>
+          <p>Шаг цены: ${company.step.toFixed(2)} ${company.step >= 1 ? 'руб.' : 'коп.'}</p>
+          <p>Количество лотов: ${lots}</p>
+          <p><strong>Стоимость шага: ${cost.toFixed(2)} ${cost >= 1 ? 'руб.' : 'коп.'}</strong></p>
+        `;
+        
+        results.prepend(resultDiv);
+        document.getElementById('lotsInput').value = '';
+      };
+      
+      // Обновление данных
+      refreshBtn.onclick = async function() {
+        refreshBtn.disabled = true;
+        loading.style.display = 'block';
+        
+        try {
+          await loadStockData();
+          status.textContent = `Данные загружены: ${new Date().toLocaleTimeString()}`;
+          showMessage('Данные успешно обновлены!', 'success');
+        } catch (error) {
+          console.error('Ошибка обновления:', error);
+          showMessage('Ошибка при обновлении данных', 'error');
+        } finally {
+          refreshBtn.disabled = false;
+          loading.style.display = 'none';
+        }
+      };
+      
+      // Функция debounce для ограничения частоты запросов
+      function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+          clearTimeout(timeout);
+          timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+      }
+      
+      // Показ сообщений
+      function showMessage(text, type = 'info') {
+        const message = document.createElement('div');
+        message.className = `result-item ${type}`;
+        message.innerHTML = `<p>${text}</p>`;
+        results.prepend(message);
+        setTimeout(() => message.remove(), 3000);
+      }
+      
+      function showError(text) {
+        showMessage(text, 'error');
+      }
+    });
+  </script>
+</body>
+</html>
